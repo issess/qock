@@ -31,10 +31,11 @@ BLACK = 0
 
 CLOCK_FONT_FILE = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
 DATE_FONT_FILE = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
-# WEEKDAY_FONT_FILE = '/home/pi/gulim.ttc'
+#WEEKDAY_FONT_FILE = '/home/pi/gulim.ttc'
 WEEKDAY_FONT_FILE = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
-NOW_WEATHER_FONT_FILE = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
+NOW_WEATHER_FONT_FILE = '/usr/share/fonts/truetype/droid/DroidSans.ttf'
 DAY_WEATHER_FONT_FILE = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
+WEATHER_FONT_FILE = '/home/pi/qock/icon/meteocons.ttf'
 
 # fonts are in different places on Raspbian/Angstrom so search
 possible_fonts = [
@@ -42,8 +43,20 @@ possible_fonts = [
     DATE_FONT_FILE,
     WEEKDAY_FONT_FILE,
     NOW_WEATHER_FONT_FILE,
-    DAY_WEATHER_FONT_FILE
+    DAY_WEATHER_FONT_FILE,
+    WEATHER_FONT_FILE
 ]
+
+iconmap = { "01d" : "B", "01n" : "C", # clear sky
+            "02d": "H", "02n": "I", # few clouds
+            "03d": "N", "03n": "N", # scattered clouds
+            "04d": "Y", "04n": "Y", # broken clouds
+            "09d": "Q", "09n": "Q", # shower rain
+            "10d": "R", "10n": "R", # rain
+            "11d": "0", "11n": "0", # thunderstorm
+            "13d": "W", "13n": "W", # snow
+            "50d": "J", "50n": "K", # mist
+            }
 
 for f in possible_fonts:
     if not os.path.exists(f):
@@ -52,45 +65,62 @@ for f in possible_fonts:
 
 class Settings27(object):
     # fonts
-    CLOCK_FONT_SIZE = 50
+    CLOCK_FONT_SIZE = 45
     DATE_FONT_SIZE = 22
-    WEEKDAY_FONT_SIZE = 22
-    NOW_WEATHER_FONT_SIZE = 20
-    DAY_WEATHER_FONT_SIZE = 14
+    WEEKDAY_FONT_SIZE = 45
+    TEMP_FONT_SIZE = 20
+    NOW_WEATHER_ICON_FONT_SIZE = 100
+    DAY_WEATHER_FONT_SIZE = 12
+    DAY_WEATHER_TEMP_FONT_SIZE = 11
+    DAY_WEATHER_ICON_FONT_SIZE = 30
 
     # time
-    X_OFFSET = 0
-    Y_OFFSET = 15
+    X_OFFSET = 20
+    Y_OFFSET = 20
 
     # date
-    DATE_X = 8
-    DATE_Y = -2
+    DATE_X = 20
+    DATE_Y = 70
 
     # weekday
     WEEKDAY_X = 135
-    WEEKDAY_Y = -2
+    WEEKDAY_Y = 0
 
     # now weather
-    NOW_WEATHER_X = 0
-    NOW_WEATHER_Y = 65
+    TEMP_X = 170
+    TEMP_Y = 90
+
+    # now weather
+    NOW_WEATHER_ICON_X = 150
+    NOW_WEATHER_ICON_Y = 0
 
     # day weather
-    DAY_WEATHER_X = 0
-    DAY_WEATHER_Y = 90
-    DAY_WEATHER_HEIGHT = 16
+    DAY_WEATHER_X = 10
+    DAY_WEATHER_Y = 115
 
+    # day weather
+    DAY_WEATHER_ICON_X = 10
+    DAY_WEATHER_ICON_Y = 132
+
+    # day temp weather
+    DAY_WEATHER_TEMP_X = 10
+    DAY_WEATHER_TEMP_Y = 162
 
 DAYS = [
-    u"Mon",
-    u"Tue",
-    u"Wed",
-    u"Thu",
-    u"Fri",
-    u"Sat",
-    u"Sun"
+    u"월요일",
+    u"화요일",
+    u"수요일",
+    u"목요일",
+    u"금요일",
+    u"토요일",
+    u"일요일"
 ]
 
 daily_weather = [
+]
+daily_weather_icon = [
+]
+daily_weather_temp = [
 ]
 
 
@@ -131,8 +161,12 @@ def demo(epd, settings):
     clock_font = ImageFont.truetype(CLOCK_FONT_FILE, settings.CLOCK_FONT_SIZE)
     date_font = ImageFont.truetype(DATE_FONT_FILE, settings.DATE_FONT_SIZE)
     weekday_font = ImageFont.truetype(WEEKDAY_FONT_FILE, settings.WEEKDAY_FONT_SIZE)
-    now_weather_font = ImageFont.truetype(NOW_WEATHER_FONT_FILE, settings.NOW_WEATHER_FONT_SIZE)
+    temp_font = ImageFont.truetype(NOW_WEATHER_FONT_FILE, settings.TEMP_FONT_SIZE)
+    now_weather_icon_font = ImageFont.truetype(WEATHER_FONT_FILE, settings.NOW_WEATHER_ICON_FONT_SIZE)
     day_weather_font = ImageFont.truetype(DAY_WEATHER_FONT_FILE, settings.DAY_WEATHER_FONT_SIZE)
+    day_weather_icon_font = ImageFont.truetype(WEATHER_FONT_FILE, settings.DAY_WEATHER_ICON_FONT_SIZE)
+    day_weather_temp_font = ImageFont.truetype(DAY_WEATHER_FONT_FILE, settings.DAY_WEATHER_TEMP_FONT_SIZE)
+
 
     # initial time
     now = datetime.today()
@@ -151,44 +185,63 @@ def demo(epd, settings):
         if refresh_minute == now.minute:
             obs = owm.weather_at_place(owm_config.weather_location)
             w = obs.get_weather()
-            now_weather_str = w.get_detailed_status()
-            now_weather_str += ", "
-            now_weather_str += str(w.get_temperature(unit='celsius')['temp'])
-            now_weather_str += "'C, "
-            now_weather_str += str(w.get_humidity())
-            now_weather_str += "%"
+            temp_str = u"{temp:02.1f}°C".format(temp=w.get_temperature(unit='celsius')['temp'])
+            #now_weather_str += str(w.get_humidity())
+            #now_weather_str += "%, "
+            #now_weather_str += str(w.get_wind()['speed'])
+            #now_weather_str += "m/s"
 
-            print("now_weather_str=" + now_weather_str)
+            now_weather_icon_str = iconmap.get(w.get_weather_icon_name(), ")")
 
-            fc = owm.daily_forecast(owm_config.weather_location, limit=3)
+            print("now_weather_str=" + temp_str +" now_weather_icon_str=" + now_weather_icon_str)
+
+            fc = owm.daily_forecast(owm_config.weather_location, limit=5)
             f = fc.get_forecast()
             lst = f.get_weathers()
 
             for weather in f:
                 month = datetime.fromtimestamp(int(weather.get_reference_time())).month
                 day = datetime.fromtimestamp(int(weather.get_reference_time())).day
-                day_str = '{m:02d}/{d:02d} {status:s}'.format(m=month, d=day, status=weather.get_detailed_status())
-                print(day_str)
+                day_str = '{m:02d}/{d:02d}'.format(m=month, d=day)
                 daily_weather.append(day_str)
+                daily_weather_icon.append(iconmap.get(weather.get_weather_icon_name(), ")"))
+                daily_weather_temp.append(u"{min:2.0f}/{max:2.0f}".format(min=weather.get_temperature(unit='celsius')['min'],max=weather.get_temperature(unit='celsius')['max']))
+                print(day_str + " " + iconmap.get(weather.get_weather_icon_name(), ")") + " " + weather.get_weather_icon_name() + " " + weather.get_status() + "("+ weather.get_detailed_status()+")")
 
         # hours
         draw.text((settings.X_OFFSET, settings.Y_OFFSET), '{h:02d}:{m:02d}'.format(h=now.hour, m=now.minute),
                   fill=BLACK, font=clock_font)
+
         # date
         draw.text((settings.DATE_X, settings.DATE_Y),
                   '{y:04d}/{m:02d}/{d:02d}'.format(y=now.year, m=now.month, d=now.day), fill=BLACK, font=date_font)
-        # weekday
-        draw.text((settings.WEEKDAY_X, settings.WEEKDAY_Y), u'{w:s}'.format(w=DAYS[now.weekday()]), fill=BLACK,
-                  font=weekday_font)
-        # now weather
-        draw.text((settings.NOW_WEATHER_X, settings.NOW_WEATHER_Y), '{w:s}'.format(w=now_weather_str), fill=BLACK,
-                  font=now_weather_font)
 
-        # dayily weather
+        # weekday
+        # draw.text((settings.WEEKDAY_X, settings.WEEKDAY_Y), u'{w:s}'.format(w=DAYS[now.weekday()]), fill=BLACK, font=weekday_font)
+
+        # now weather
+        draw.text((settings.TEMP_X, settings.TEMP_Y), u'{w:s}'.format(w=temp_str), fill=BLACK, font=temp_font)
+
+        # now weather icon
+        draw.text((settings.NOW_WEATHER_ICON_X, settings.NOW_WEATHER_ICON_Y), '{w:s}'.format(w=now_weather_icon_str), fill=BLACK, font=now_weather_icon_font)
+
+
+        # daily weather
         i = 0
         for daily_weather_str in daily_weather:
-            draw.text((settings.DAY_WEATHER_X, settings.DAY_WEATHER_Y + i * settings.DAY_WEATHER_HEIGHT),
-                      '{w:s}'.format(w=daily_weather_str), fill=BLACK, font=day_weather_font)
+            draw.text((settings.DAY_WEATHER_X + i * 52, settings.DAY_WEATHER_Y), '{w:s}'.format(w=daily_weather_str), fill=BLACK, font=day_weather_font)
+            i = i + 1
+
+        # daily icon
+        i = 0
+        for daily_weather_icon_str in daily_weather_icon:
+            draw.text((settings.DAY_WEATHER_ICON_X + i * 52, settings.DAY_WEATHER_ICON_Y), '{w:s}'.format(w=daily_weather_icon_str), fill=BLACK, font=day_weather_icon_font)
+            i = i + 1
+
+        # daily temp
+        i = 0
+        for daily_weather_temp_str in daily_weather_temp:
+            draw.text((settings.DAY_WEATHER_TEMP_X + i * 52, settings.DAY_WEATHER_TEMP_Y), u'{w:s}'.format(w=daily_weather_temp_str), fill=BLACK, font=day_weather_temp_font)
             i = i + 1
 
         # display image on the panel
