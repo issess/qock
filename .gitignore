@@ -1,2 +1,3 @@
-owm_auth.py
+owm_config.py
 *.pyc
+.idea
