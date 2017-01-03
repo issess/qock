@@ -35,7 +35,7 @@ DATE_FONT_FILE = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
 WEEKDAY_FONT_FILE = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
 NOW_WEATHER_FONT_FILE = '/usr/share/fonts/truetype/droid/DroidSans.ttf'
 DAY_WEATHER_FONT_FILE = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
-WEATHER_FONT_FILE = '/home/pi/qock/icon/meteocons.ttf'
+WEATHER_FONT_FILE = 'icon/meteocons.ttf'
 
 # fonts are in different places on Raspbian/Angstrom so search
 possible_fonts = [
