@@ -15,7 +15,8 @@
 
 
 import sys
-import os
+import random
+
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
@@ -26,41 +27,26 @@ from EPD import EPD
 import pyowm
 import owm_config
 
+import font
+
+import RPi.GPIO as GPIO  # Use the python GPIO handler for RPi
+
+GPIO.setmode(GPIO.BCM)  # Use the Broadcom GPIO pin designations
+GPIO.setwarnings(False)
+
 WHITE = 1
 BLACK = 0
 
-CLOCK_FONT_FILE = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
-DATE_FONT_FILE = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
-#WEEKDAY_FONT_FILE = '/home/pi/gulim.ttc'
-WEEKDAY_FONT_FILE = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
-NOW_WEATHER_FONT_FILE = '/usr/share/fonts/truetype/droid/DroidSans.ttf'
-DAY_WEATHER_FONT_FILE = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
-WEATHER_FONT_FILE = 'icon/meteocons.ttf'
-
-# fonts are in different places on Raspbian/Angstrom so search
-possible_fonts = [
-    CLOCK_FONT_FILE,
-    DATE_FONT_FILE,
-    WEEKDAY_FONT_FILE,
-    NOW_WEATHER_FONT_FILE,
-    DAY_WEATHER_FONT_FILE,
-    WEATHER_FONT_FILE
-]
-
-iconmap = { "01d" : "B", "01n" : "C", # clear sky
-            "02d": "H", "02n": "I", # few clouds
-            "03d": "N", "03n": "N", # scattered clouds
-            "04d": "Y", "04n": "Y", # broken clouds
-            "09d": "Q", "09n": "Q", # shower rain
-            "10d": "R", "10n": "R", # rain
-            "11d": "0", "11n": "0", # thunderstorm
-            "13d": "W", "13n": "W", # snow
-            "50d": "J", "50n": "K", # mist
-            }
-
-for f in possible_fonts:
-    if not os.path.exists(f):
-        raise 'no font file found'
+iconmap = {"01d": "B", "01n": "C",  # clear sky
+           "02d": "H", "02n": "I",  # few clouds
+           "03d": "N", "03n": "N",  # scattered clouds
+           "04d": "Y", "04n": "Y",  # broken clouds
+           "09d": "Q", "09n": "Q",  # shower rain
+           "10d": "R", "10n": "R",  # rain
+           "11d": "0", "11n": "0",  # thunderstorm
+           "13d": "W", "13n": "W",  # snow
+           "50d": "J", "50n": "K",  # mist
+           }
 
 
 class Settings27(object):
@@ -69,9 +55,10 @@ class Settings27(object):
     DATE_FONT_SIZE = 22
     WEEKDAY_FONT_SIZE = 45
     TEMP_FONT_SIZE = 20
+    DAY_WEATHER_FONT_SIZE = 9
+    DAY_WEATHER_TEMP_FONT_SIZE = 12
+
     NOW_WEATHER_ICON_FONT_SIZE = 100
-    DAY_WEATHER_FONT_SIZE = 12
-    DAY_WEATHER_TEMP_FONT_SIZE = 11
     DAY_WEATHER_ICON_FONT_SIZE = 30
 
     # time
@@ -106,6 +93,7 @@ class Settings27(object):
     DAY_WEATHER_TEMP_X = 10
     DAY_WEATHER_TEMP_Y = 162
 
+
 DAYS = [
     u"월요일",
     u"화요일",
@@ -123,10 +111,39 @@ daily_weather_icon = [
 daily_weather_temp = [
 ]
 
+menu = {"menu": "메뉴"}
+
+
+def my_callback(channel):  # When a button is pressed, report which channel and flash led
+    print("Falling edge detected on port %s" % channel)
+    flash_led(channel)
+
+
+def flash_led(channel):
+    if (channel == 16):
+        GPIO.output(6, 1)  # flash red on GPIO6
+        time.sleep(0.01)
+        GPIO.output(6, 0)
+    elif (channel == 19):
+        GPIO.output(12, 1)  # flash green on GPIO12
+        time.sleep(0.01)
+        GPIO.output(12, 0)
+    elif (channel == 20):
+        GPIO.output(5, 1)  # flash blue on GPIO5
+        time.sleep(0.01)
+        GPIO.output(5, 0)
+    elif (channel == 26):
+        GPIO.output(12, 1)  # flash them all
+        GPIO.output(6, 1)
+        GPIO.output(5, 1)
+        time.sleep(0.01)
+        GPIO.output(12, 0)
+        GPIO.output(6, 0)
+        GPIO.output(5, 0)
+
 
 def main(argv):
     """main program - draw HH:MM clock on 2.70" size panel"""
-
     global settings
     global owm
     epd = EPD()
@@ -145,7 +162,22 @@ def main(argv):
 
     owm = pyowm.OWM(owm_config.weather_api_key)
 
+    initGPIO()
     demo(epd, settings)
+
+
+def initGPIO():
+    for channel in [5, 6, 12]:
+        GPIO.setup(channel, GPIO.OUT)
+        GPIO.output(channel, 0)
+
+    # Buttons are on GPIO16, 19, 20 & 26 left to right
+    for channel in [16, 19, 20, 26]:
+        # Set buttons as input with internal pull-up
+        GPIO.setup(channel, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        # Event detect a button press, falling edge - switched to ground
+        # On detect, do actions in my_callback function, switch debounce of 500ms
+        GPIO.add_event_detect(channel, GPIO.FALLING, callback=my_callback, bouncetime=500)
 
 
 def demo(epd, settings):
@@ -154,19 +186,40 @@ def demo(epd, settings):
     # initially set all white background
     image = Image.new('1', epd.size, WHITE)
 
+    possible_fonts = font.initFont()
+
+    TIME_FONT_FILE = random.choice(possible_fonts["text"])
+    print "TIME:" + TIME_FONT_FILE
+    DATE_FONT_FILE = random.choice(possible_fonts["text"])
+    print "DATE:" + DATE_FONT_FILE
+    # WEEKDAY_FONT_FILE = random.choice(possible_fonts["weekday"])
+    # print "WEEKDAY:"+WEEKDAY_FONT_FILE
+    TEMP_FONT_FILE = random.choice(possible_fonts["text"])
+    print "TEMP:" + TEMP_FONT_FILE
+
+    DAY_WEATHER_FONT_FILE = random.choice(possible_fonts["text"])
+    print "DAY WEATHER:" + DAY_WEATHER_FONT_FILE
+    DAY_WEATHER_TEMP_FONT_FILE = random.choice(possible_fonts["text"])
+    print "DAY WEATHER TEMP:" + DAY_WEATHER_TEMP_FONT_FILE
+
+    DEFAULT_FONT_FILE = random.choice(possible_fonts["default"])
+    WEATHER_FONT_FILE = random.choice(possible_fonts["weather"])
+
+    time_font = ImageFont.truetype(TIME_FONT_FILE, settings.CLOCK_FONT_SIZE)
+    date_font = ImageFont.truetype(DATE_FONT_FILE, settings.DATE_FONT_SIZE)
+    # weekday_font = ImageFont.truetype(WEEKDAY_FONT_FILE, settings.WEEKDAY_FONT_SIZE)
+    temp_font = ImageFont.truetype(TEMP_FONT_FILE, settings.TEMP_FONT_SIZE)
+    day_weather_font = ImageFont.truetype(DAY_WEATHER_FONT_FILE, settings.DAY_WEATHER_FONT_SIZE)
+    day_weather_temp_font = ImageFont.truetype(DAY_WEATHER_TEMP_FONT_FILE, settings.DAY_WEATHER_TEMP_FONT_SIZE)
+
+    now_weather_icon_font = ImageFont.truetype(WEATHER_FONT_FILE, settings.NOW_WEATHER_ICON_FONT_SIZE)
+    day_weather_icon_font = ImageFont.truetype(WEATHER_FONT_FILE, settings.DAY_WEATHER_ICON_FONT_SIZE)
+
+    default_font = ImageFont.truetype(DEFAULT_FONT_FILE, settings.DAY_WEATHER_ICON_FONT_SIZE)
+
     # prepare for drawing
     draw = ImageDraw.Draw(image)
     width, height = image.size
-
-    clock_font = ImageFont.truetype(CLOCK_FONT_FILE, settings.CLOCK_FONT_SIZE)
-    date_font = ImageFont.truetype(DATE_FONT_FILE, settings.DATE_FONT_SIZE)
-    weekday_font = ImageFont.truetype(WEEKDAY_FONT_FILE, settings.WEEKDAY_FONT_SIZE)
-    temp_font = ImageFont.truetype(NOW_WEATHER_FONT_FILE, settings.TEMP_FONT_SIZE)
-    now_weather_icon_font = ImageFont.truetype(WEATHER_FONT_FILE, settings.NOW_WEATHER_ICON_FONT_SIZE)
-    day_weather_font = ImageFont.truetype(DAY_WEATHER_FONT_FILE, settings.DAY_WEATHER_FONT_SIZE)
-    day_weather_icon_font = ImageFont.truetype(WEATHER_FONT_FILE, settings.DAY_WEATHER_ICON_FONT_SIZE)
-    day_weather_temp_font = ImageFont.truetype(DAY_WEATHER_FONT_FILE, settings.DAY_WEATHER_TEMP_FONT_SIZE)
-
 
     # initial time
     now = datetime.today()
@@ -186,14 +239,14 @@ def demo(epd, settings):
             obs = owm.weather_at_place(owm_config.weather_location)
             w = obs.get_weather()
             temp_str = u"{temp:02.1f}°C".format(temp=w.get_temperature(unit='celsius')['temp'])
-            #now_weather_str += str(w.get_humidity())
-            #now_weather_str += "%, "
-            #now_weather_str += str(w.get_wind()['speed'])
-            #now_weather_str += "m/s"
+            # now_weather_str += str(w.get_humidity())
+            # now_weather_str += "%, "
+            # now_weather_str += str(w.get_wind()['speed'])
+            # now_weather_str += "m/s"
 
             now_weather_icon_str = iconmap.get(w.get_weather_icon_name(), ")")
 
-            print("now_weather_str=" + temp_str +" now_weather_icon_str=" + now_weather_icon_str)
+            #print("now_weather_str=" + temp_str + " now_weather_icon_str=" + now_weather_icon_str)
 
             fc = owm.daily_forecast(owm_config.weather_location, limit=5)
             f = fc.get_forecast()
@@ -205,12 +258,15 @@ def demo(epd, settings):
                 day_str = '{m:02d}/{d:02d}'.format(m=month, d=day)
                 daily_weather.append(day_str)
                 daily_weather_icon.append(iconmap.get(weather.get_weather_icon_name(), ")"))
-                daily_weather_temp.append(u"{min:2.0f}/{max:2.0f}".format(min=weather.get_temperature(unit='celsius')['min'],max=weather.get_temperature(unit='celsius')['max']))
-                print(day_str + " " + iconmap.get(weather.get_weather_icon_name(), ")") + " " + weather.get_weather_icon_name() + " " + weather.get_status() + "("+ weather.get_detailed_status()+")")
+                daily_weather_temp.append(
+                    u"{min:2.0f}/{max:2.0f}".format(min=weather.get_temperature(unit='celsius')['min'],
+                                                    max=weather.get_temperature(unit='celsius')['max']))
+                print(day_str + " " + iconmap.get(weather.get_weather_icon_name(),
+                                                  ")") + " " + weather.get_weather_icon_name() + " " + weather.get_status() + "(" + weather.get_detailed_status() + ")")
 
         # hours
         draw.text((settings.X_OFFSET, settings.Y_OFFSET), '{h:02d}:{m:02d}'.format(h=now.hour, m=now.minute),
-                  fill=BLACK, font=clock_font)
+                  fill=BLACK, font=time_font)
 
         # date
         draw.text((settings.DATE_X, settings.DATE_Y),
@@ -223,25 +279,28 @@ def demo(epd, settings):
         draw.text((settings.TEMP_X, settings.TEMP_Y), u'{w:s}'.format(w=temp_str), fill=BLACK, font=temp_font)
 
         # now weather icon
-        draw.text((settings.NOW_WEATHER_ICON_X, settings.NOW_WEATHER_ICON_Y), '{w:s}'.format(w=now_weather_icon_str), fill=BLACK, font=now_weather_icon_font)
-
+        draw.text((settings.NOW_WEATHER_ICON_X, settings.NOW_WEATHER_ICON_Y), '{w:s}'.format(w=now_weather_icon_str),
+                  fill=BLACK, font=now_weather_icon_font)
 
         # daily weather
         i = 0
         for daily_weather_str in daily_weather:
-            draw.text((settings.DAY_WEATHER_X + i * 52, settings.DAY_WEATHER_Y), '{w:s}'.format(w=daily_weather_str), fill=BLACK, font=day_weather_font)
+            draw.text((settings.DAY_WEATHER_X + i * 52, settings.DAY_WEATHER_Y), '{w:s}'.format(w=daily_weather_str),
+                      fill=BLACK, font=day_weather_font)
             i = i + 1
 
         # daily icon
         i = 0
         for daily_weather_icon_str in daily_weather_icon:
-            draw.text((settings.DAY_WEATHER_ICON_X + i * 52, settings.DAY_WEATHER_ICON_Y), '{w:s}'.format(w=daily_weather_icon_str), fill=BLACK, font=day_weather_icon_font)
+            draw.text((settings.DAY_WEATHER_ICON_X + i * 52, settings.DAY_WEATHER_ICON_Y),
+                      '{w:s}'.format(w=daily_weather_icon_str), fill=BLACK, font=day_weather_icon_font)
             i = i + 1
 
         # daily temp
         i = 0
         for daily_weather_temp_str in daily_weather_temp:
-            draw.text((settings.DAY_WEATHER_TEMP_X + i * 52, settings.DAY_WEATHER_TEMP_Y), u'{w:s}'.format(w=daily_weather_temp_str), fill=BLACK, font=day_weather_temp_font)
+            draw.text((settings.DAY_WEATHER_TEMP_X + i * 52, settings.DAY_WEATHER_TEMP_Y),
+                      u'{w:s}'.format(w=daily_weather_temp_str), fill=BLACK, font=day_weather_temp_font)
             i = i + 1
 
         # display image on the panel
@@ -269,4 +328,6 @@ if "__main__" == __name__:
         main(sys.argv[1:])
     except KeyboardInterrupt:
         sys.exit('interrupted')
+        GPIO.cleanup()  # Clean up when exiting with Ctrl-C
+        print("Cleaning up!")
         pass
