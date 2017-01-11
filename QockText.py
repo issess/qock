@@ -1,35 +1,51 @@
 # -*- coding: utf-8 -*-
-# Copyright 2013-2015 Pervasive Displays, Inc.
+# The MIT License (MIT)
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at:
+# Copyright (c) 2016 SeungHoon Han (issess)
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
 #
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
-# express or implied.  See the License for the specific language
-# governing permissions and limitations under the License.
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 
 from QockObject import QockObject
 
 from PIL import ImageFont
 
+WHITE = 1
+BLACK = 0
+
 
 class QockText(QockObject):
     def __init__(self, name, x=0, y=0, font_size=0):
-        self._name = name
+        QockObject.__init__(self, name)
         self._x = x
         self._y = y
         self._font_size = font_size
+        self._text = ""
 
     def __str__(self):
         return self._name
 
     def loadFont(self, path):
         self._font = ImageFont.truetype(path, self._font_size)
+
+    def render(self, draw):
+        draw.text((self.x, self.y), u'{w:s}'.format(w=self._text), fill=BLACK, font=self._font)
 
     @property
     def font(self):
@@ -39,6 +55,14 @@ class QockText(QockObject):
     def text(self):
         return self._text
 
+    @text.setter
+    def text(self, text):
+        self._text = text
+
     @property
     def font_size(self):
         return self._font_size
+
+    @font_size.setter
+    def font_size(self, font_size):
+        self._font_size = font_size

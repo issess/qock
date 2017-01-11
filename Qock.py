@@ -1,17 +1,25 @@
 # -*- coding: utf-8 -*-
-# Copyright 2013-2015 Pervasive Displays, Inc.
+# The MIT License (MIT)
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at:
+# Copyright (c) 2016 SeungHoon Han (issess)
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
 #
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
-# express or implied.  See the License for the specific language
-# governing permissions and limitations under the License.
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 
 import sys
@@ -19,7 +27,7 @@ import random
 
 from PIL import Image
 from PIL import ImageDraw
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 from EPD import EPD
 
@@ -54,7 +62,7 @@ class Settings27(object):
     date_text = QockText("date_text", 20, 70, 22)
     weekday_text = QockText("weekday_text", 135, 0, 45)
 
-    now_weather_icon = QockText("now_weather_text", 150, 0, 100)
+    now_weather_icon = QockText("now_weather_icon", 150, 0, 100)
     now_weather_temp = QockText("now_weather_temp", 170, 90, 20)
 
     day_weather_text = QockText("day_weather_text", 10, 115, 9)
@@ -150,6 +158,12 @@ def initGPIO():
         GPIO.add_event_detect(channel, GPIO.FALLING, callback=my_callback, bouncetime=500)
 
 
+def utc2local(utc):
+    epoch = time.mktime(utc.timetuple())
+    offset = datetime.fromtimestamp(epoch) - datetime.utcfromtimestamp(epoch)
+    return utc + offset
+
+
 def loop(epd, settings):
     # initially set all white background
     image = Image.new('1', epd.size, WHITE)
@@ -166,7 +180,6 @@ def loop(epd, settings):
     settings.day_weather_text.loadFont(settings.fontManager.getDefaultFontPath())
     settings.day_weather_icon.loadFont(settings.fontManager.getWeatherFontPath())
     settings.day_weather_temp.loadFont(settings.fontManager.getDefaultFontPath())
-
 
     # prepare for drawing
     draw = ImageDraw.Draw(image)
@@ -186,21 +199,25 @@ def loop(epd, settings):
         draw.rectangle((0, 0, width, height), fill=WHITE, outline=WHITE)
 
         # update weather
-
         if refresh_minute == now.minute:
             try:
                 obs = owm.weather_at_place(owm_config.weather_location)
                 w = obs.get_weather()
-                temp_str = u"{temp:02.1f}°C".format(temp=w.get_temperature(unit='celsius')['temp'])
-                now_weather_icon_str = iconmap.get(w.get_weather_icon_name(), ")")
+
+                settings.now_weather_temp.text = u"{temp:02.1f}°C".format(
+                    temp=w.get_temperature(unit='celsius')['temp'])
+                settings.now_weather_icon.text = iconmap.get(w.get_weather_icon_name(), ")")
+
                 fc = owm.daily_forecast(owm_config.weather_location, limit=5)
                 f = fc.get_forecast()
                 lst = f.get_weathers()
             except pyowm.exceptions.api_call_error.APICallError as e:
-                temp_str = u"?? °C"
-                now_weather_icon_str = ")"
+
+                settings.now_weather_temp.text = u"?? °C"
+                settings.now_weather_icon.text = ")"
+
                 f = []
-                refresh_minute = (now.minute+1) % 60  # try again
+                refresh_minute = (now.minute + 1) % 60  # try again
                 print(e)
 
             # now_weather_str += str(w.get_humidity())
@@ -209,9 +226,19 @@ def loop(epd, settings):
             # now_weather_str += "m/s"
             # print("now_weather_str=" + temp_str + " now_weather_icon_str=" + now_weather_icon_str)
 
+
+            timegap = now.utcnow() - (datetime.fromtimestamp(int(f.get(0).get_reference_time())) - timedelta(hours=12))
+
             for weather in f:
-                month = datetime.fromtimestamp(int(weather.get_reference_time())).month
-                day = datetime.fromtimestamp(int(weather.get_reference_time())).day
+                print "======================="
+                utcdaytime = datetime.fromtimestamp(int(weather.get_reference_time())) - timedelta(hours=12)
+                daytime = utc2local(utcdaytime + timegap)
+
+                # print "utcdaytime=" + str(utcdaytime)
+                # print "daytime=" + str(daytime)
+
+                month = daytime.month
+                day = daytime.day
                 day_str = '{m:02d}/{d:02d}'.format(m=month, d=day)
                 daily_weather.append(day_str)
                 daily_weather_icon.append(iconmap.get(weather.get_weather_icon_name(), ")"))
@@ -233,13 +260,11 @@ def loop(epd, settings):
         # weekday
         # draw.text((settings.WEEKDAY_X, settings.WEEKDAY_Y), u'{w:s}'.format(w=DAYS[now.weekday()]), fill=BLACK, font=weekday_font)
 
-        # now weather
-        draw.text((settings.now_weather_temp.x, settings.now_weather_temp.y), u'{w:s}'.format(w=temp_str), fill=BLACK,
-                  font=settings.now_weather_temp.font)
+        # now weather temp
+        settings.now_weather_temp.render(draw)
 
         # now weather icon
-        draw.text((settings.now_weather_icon.x, settings.now_weather_icon.y), '{w:s}'.format(w=now_weather_icon_str),
-                  fill=BLACK, font=settings.now_weather_icon.font)
+        settings.now_weather_icon.render(draw)
 
         # daily weather
         i = 0
