@@ -124,6 +124,8 @@ def main(argv):
     """main program - draw HH:MM clock on 2.70" size panel"""
     global settings
     global owm
+    print ("qock start!")
+
     epd = EPD()
 
     print(
@@ -227,26 +229,29 @@ def loop(epd, settings):
             # print("now_weather_str=" + temp_str + " now_weather_icon_str=" + now_weather_icon_str)
 
 
-            timegap = now.utcnow() - (datetime.fromtimestamp(int(f.get(0).get_reference_time())) - timedelta(hours=12))
+            if len(f) > 0:
+                timegap = now.utcnow() - (datetime.fromtimestamp(int(f.get(0).get_reference_time())) - timedelta(hours=12))
 
-            for weather in f:
-                print "======================="
-                utcdaytime = datetime.fromtimestamp(int(weather.get_reference_time())) - timedelta(hours=12)
-                daytime = utc2local(utcdaytime + timegap)
+                for weather in f:
+                    print "======================="
+                    utcdaytime = datetime.fromtimestamp(int(weather.get_reference_time())) - timedelta(hours=12)
+                    daytime = utc2local(utcdaytime + timegap)
 
-                # print "utcdaytime=" + str(utcdaytime)
-                # print "daytime=" + str(daytime)
+                    # print "utcdaytime=" + str(utcdaytime)
+                    # print "daytime=" + str(daytime)
 
-                month = daytime.month
-                day = daytime.day
-                day_str = '{m:02d}/{d:02d}'.format(m=month, d=day)
-                daily_weather.append(day_str)
-                daily_weather_icon.append(iconmap.get(weather.get_weather_icon_name(), ")"))
-                daily_weather_temp.append(
-                    u"{min:2.0f}/{max:2.0f}".format(min=weather.get_temperature(unit='celsius')['min'],
-                                                    max=weather.get_temperature(unit='celsius')['max']))
-                print(day_str + " " + iconmap.get(weather.get_weather_icon_name(),
-                                                  ")") + " " + weather.get_weather_icon_name() + " " + weather.get_status() + "(" + weather.get_detailed_status() + ")")
+                    month = daytime.month
+                    day = daytime.day
+                    day_str = '{m:02d}/{d:02d}'.format(m=month, d=day)
+                    daily_weather.append(day_str)
+                    daily_weather_icon.append(iconmap.get(weather.get_weather_icon_name(), ")"))
+                    daily_weather_temp.append(
+                        u"{min:2.0f}/{max:2.0f}".format(min=weather.get_temperature(unit='celsius')['min'],
+                                                        max=weather.get_temperature(unit='celsius')['max']))
+                    print(day_str + " " + iconmap.get(weather.get_weather_icon_name(),
+                                                      ")") + " " + weather.get_weather_icon_name() + " " + weather.get_status() + "(" + weather.get_detailed_status() + ")")
+            else:
+                print ("size 0")
 
         # hours
         draw.text((settings.clock_text.x, settings.clock_text.y), '{h:02d}:{m:02d}'.format(h=now.hour, m=now.minute),
