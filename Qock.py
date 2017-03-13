@@ -82,15 +82,7 @@ DAYS = [
     u"일요일"
 ]
 
-daily_weather = [
-]
-daily_weather_icon = [
-]
-daily_weather_temp = [
-]
-
 menu = {"menu": "메뉴"}
-
 
 def my_callback(channel):  # When a button is pressed, report which channel and flash led
     print("Falling edge detected on port %s" % channel)
@@ -128,9 +120,8 @@ def main(argv):
 
     epd = EPD()
 
-    print(
-        'panel = {p:s} {w:d} x {h:d}  version={v:s} COG={g:d} FILM={f:d}'.format(p=epd.panel, w=epd.width, h=epd.height,
-                                                                                 v=epd.version, g=epd.cog, f=epd.film))
+    print('panel = {p:s} {w:d} x {h:d}  version={v:s} COG={g:d} FILM={f:d}'.format(
+        p=epd.panel, w=epd.width, h=epd.height, v=epd.version, g=epd.cog, f=epd.film))
 
     if 'EPD 2.7' == epd.panel:
         settings = Settings27()
@@ -168,6 +159,11 @@ def utc2local(utc):
 
 def loop(epd, settings):
     # initially set all white background
+
+    daily_weather = []
+    daily_weather_icon = []
+    daily_weather_temp = []
+
     image = Image.new('1', epd.size, WHITE)
 
     print "load font..."
@@ -228,14 +224,33 @@ def loop(epd, settings):
             # now_weather_str += "m/s"
             # print("now_weather_str=" + temp_str + " now_weather_icon_str=" + now_weather_icon_str)
 
-
             if len(f) > 0:
-                timegap = now.utcnow() - (datetime.fromtimestamp(int(f.get(0).get_reference_time())) - timedelta(hours=12))
+                daily_weather = []
+                daily_weather_icon = []
+                daily_weather_temp = []
+                timegap = now.utcnow() - (
+                    datetime.fromtimestamp(int(f.get(0).get_reference_time())) - timedelta(hours=12))
 
                 for weather in f:
                     print "======================="
                     utcdaytime = datetime.fromtimestamp(int(weather.get_reference_time())) - timedelta(hours=12)
                     daytime = utc2local(utcdaytime + timegap)
+
+                    month = datetime.fromtimestamp(int(weather.get_reference_time())).month
+                    day = datetime.fromtimestamp(int(weather.get_reference_time())).day
+                    hour = datetime.fromtimestamp(int(weather.get_reference_time())).hour
+                    minute = datetime.fromtimestamp(int(weather.get_reference_time())).minute
+                    second = datetime.fromtimestamp(int(weather.get_reference_time())).second
+
+                    print "month="+str(month) + " day=" + str(day) +" hour="+str(hour) + " minute=" + str(minute) + " second="+str(second)
+
+                    month = daytime.month
+                    day = daytime.day
+                    hour = daytime.hour
+                    minute = daytime.minute
+                    second = daytime.second
+
+                    print "month=" + str(month) + " day=" + str(day) + " hour=" + str(hour) + " minute=" + str(minute) + " second=" + str(second)
 
                     # print "utcdaytime=" + str(utcdaytime)
                     # print "daytime=" + str(daytime)
