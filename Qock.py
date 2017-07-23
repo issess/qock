@@ -20,8 +20,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
-
+import os
 import sys
 import random
 
@@ -30,6 +29,8 @@ from PIL import ImageDraw
 from datetime import datetime, timedelta
 import time
 from EPD import EPD
+import socket
+import logging
 
 import pyowm
 import owm_config
@@ -44,6 +45,8 @@ GPIO.setwarnings(False)
 
 WHITE = 1
 BLACK = 0
+
+logger = logging.getLogger("DaemonLog")
 
 iconmap = {"01d": "B", "01n": "C",  # clear sky
            "02d": "H", "02n": "I",  # few clouds
@@ -84,8 +87,9 @@ DAYS = [
 
 menu = {"menu": "메뉴"}
 
+
 def my_callback(channel):  # When a button is pressed, report which channel and flash led
-    print("Falling edge detected on port %s" % channel)
+    logger.debug("Falling edge detected on port %s" % channel)
     flash_led(channel)
 
 
@@ -113,20 +117,26 @@ def flash_led(channel):
 
 
 def main(argv):
+    main_program()
+
+
+def main_program():
     """main program - draw HH:MM clock on 2.70" size panel"""
     global settings
     global owm
-    print ("qock start!")
+
+    logger.debug("qock start!")
+    logger.debug("current path="+str(os.getcwd()))
 
     epd = EPD()
 
-    print('panel = {p:s} {w:d} x {h:d}  version={v:s} COG={g:d} FILM={f:d}'.format(
+    logger.debug('panel = {p:s} {w:d} x {h:d}  version={v:s} COG={g:d} FILM={f:d}'.format(
         p=epd.panel, w=epd.width, h=epd.height, v=epd.version, g=epd.cog, f=epd.film))
 
     if 'EPD 2.7' == epd.panel:
         settings = Settings27()
     else:
-        print('incorrect panel size')
+        logger.debug('incorrect panel size')
         sys.exit(1)
 
     epd.clear()
@@ -166,7 +176,7 @@ def loop(epd, settings):
 
     image = Image.new('1', epd.size, WHITE)
 
-    print "load font..."
+    logger.debug("load font...")
 
     settings.clock_text.loadFont(settings.fontManager.getDefaultFontPath())
     settings.date_text.loadFont(settings.fontManager.getDefaultFontPath())
@@ -188,7 +198,7 @@ def loop(epd, settings):
 
     refresh_minute = now.minute % 60
 
-    print "loop start..."
+    logger.debug("loop start...")
     while True:
 
         now = datetime.today()
@@ -205,24 +215,21 @@ def loop(epd, settings):
                 settings.now_weather_temp.text = u"{temp:02.1f}°C".format(
                     temp=w.get_temperature(unit='celsius')['temp'])
                 settings.now_weather_icon.text = iconmap.get(w.get_weather_icon_name(), ")")
-
                 fc = owm.daily_forecast(owm_config.weather_location, limit=5)
                 f = fc.get_forecast()
                 lst = f.get_weathers()
-            except pyowm.exceptions.api_call_error.APICallError as e:
-
+            except Exception as err:
+                logger.debug(str(err))
                 settings.now_weather_temp.text = u"?? °C"
                 settings.now_weather_icon.text = ")"
-
                 f = []
-                refresh_minute = (now.minute + 1) % 60  # try again
-                print(e)
+                refresh_minute = (now.minute + 1) % 60  # try againddd
 
             # now_weather_str += str(w.get_humidity())
             # now_weather_str += "%, "
             # now_weather_str += str(w.get_wind()['speed'])
             # now_weather_str += "m/s"
-            # print("now_weather_str=" + temp_str + " now_weather_icon_str=" + now_weather_icon_str)
+            # logger.debug("now_weather_str=" + temp_str + " now_weather_icon_str=" + now_weather_icon_str)
 
             if len(f) > 0:
                 daily_weather = []
@@ -232,7 +239,7 @@ def loop(epd, settings):
                     datetime.fromtimestamp(int(f.get(0).get_reference_time())) - timedelta(hours=12))
 
                 for weather in f:
-                    print "======================="
+                    logger.debug("=======================")
                     utcdaytime = datetime.fromtimestamp(int(weather.get_reference_time())) - timedelta(hours=12)
                     daytime = utc2local(utcdaytime + timegap)
 
@@ -242,7 +249,8 @@ def loop(epd, settings):
                     minute = datetime.fromtimestamp(int(weather.get_reference_time())).minute
                     second = datetime.fromtimestamp(int(weather.get_reference_time())).second
 
-                    print "month="+str(month) + " day=" + str(day) +" hour="+str(hour) + " minute=" + str(minute) + " second="+str(second)
+                    logger.debug("month=" + str(month) + " day=" + str(day) + " hour=" + str(hour) + " minute=" + str(
+                        minute) + " second=" + str(second))
 
                     month = daytime.month
                     day = daytime.day
@@ -250,10 +258,11 @@ def loop(epd, settings):
                     minute = daytime.minute
                     second = daytime.second
 
-                    print "month=" + str(month) + " day=" + str(day) + " hour=" + str(hour) + " minute=" + str(minute) + " second=" + str(second)
+                    logger.debug("month=" + str(month) + " day=" + str(day) + " hour=" + str(hour) + " minute=" + str(
+                        minute) + " second=" + str(second))
 
-                    # print "utcdaytime=" + str(utcdaytime)
-                    # print "daytime=" + str(daytime)
+                    # logger.debug "utcdaytime=" + str(utcdaytime)
+                    # logger.debug "daytime=" + str(daytime)
 
                     month = daytime.month
                     day = daytime.day
@@ -263,10 +272,10 @@ def loop(epd, settings):
                     daily_weather_temp.append(
                         u"{min:2.0f}/{max:2.0f}".format(min=weather.get_temperature(unit='celsius')['min'],
                                                         max=weather.get_temperature(unit='celsius')['max']))
-                    print(day_str + " " + iconmap.get(weather.get_weather_icon_name(),
-                                                      ")") + " " + weather.get_weather_icon_name() + " " + weather.get_status() + "(" + weather.get_detailed_status() + ")")
+                    logger.debug(day_str + " " + iconmap.get(weather.get_weather_icon_name(),
+                                                             ")") + " " + weather.get_weather_icon_name() + " " + weather.get_status() + "(" + weather.get_detailed_status() + ")")
             else:
-                print ("size 0")
+                logger.debug("size 0")
 
         # hours
         draw.text((settings.clock_text.x, settings.clock_text.y), '{h:02d}:{m:02d}'.format(h=now.hour, m=now.minute),
@@ -334,5 +343,5 @@ if "__main__" == __name__:
     except KeyboardInterrupt:
         sys.exit('interrupted')
         GPIO.cleanup()  # Clean up when exiting with Ctrl-C
-        print("Cleaning up!")
+        logger.debug("Cleaning up!")
         pass
