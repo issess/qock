@@ -8,7 +8,7 @@ sudo rpi-update
 
 sudo apt-get -y install  libi2c-dev i2c-tools python-smbus libfuse-dev python-imaging git git-core vim wiringpi ttf-freefont python-pip
 
-sudo pip install pyowm pillow
+sudo pip install pyowm pillow gitpython
 
 git clone https://github.com/repaper/gratis
 
