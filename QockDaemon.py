@@ -18,7 +18,7 @@ class App():
         self.stdin_path = '/dev/null'
         self.stdout_path = '/dev/null'
         self.stderr_path = '/dev/null'
-        self.pidfile_path = '/var/run/qock/qock.pid'
+        self.pidfile_path = '/tmp/qock.pid'
         self.pidfile_timeout = 5
 
     def run(self):
