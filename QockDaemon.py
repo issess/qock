@@ -47,5 +47,5 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 daemon_runner = runner.DaemonRunner(app)
 # This ensures that the logger file handle does not get closed during daemonization
 daemon_runner.daemon_context.files_preserve = [handler.stream]
-daemon_runner.daemon_context.working_directory = "/home/pi/qock_dev"
+daemon_runner.daemon_context.working_directory = "/home/pi/qock"
 daemon_runner.do_action()

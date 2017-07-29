@@ -23,7 +23,7 @@
 # Activate the python virtual environment
 #. /path_to_virtualenv/activate
 
-export QOCKDIR=/home/pi/qock_dev
+export QOCKDIR=/home/pi/qock
 
 cd $QOCKDIR
 
