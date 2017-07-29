@@ -23,25 +23,25 @@
 # Activate the python virtual environment
 #. /path_to_virtualenv/activate
 
+export QOCKDIR=/home/pi/qock_dev
 
-WORKDIR=/home/pi/qock_dev/
-
-cd $WORKDIR
+cd $QOCKDIR
 
 case "$1" in
     start)
         echo "Starting qock server"
         # Start the daemon
-        python $WORKDIR/QockDaemon.py start
+        $QOCKDIR/tools/check-for-update.sh
+        python $QOCKDIR/QockDaemon.py start
         ;;
     stop)
         echo "Stopping qock server"
         # Stop the daemon
-        python $WORKDIR/QockDaemon.py stop
+        python $QOCKDIR/QockDaemon.py stop
         ;;
     restart)
         echo "Restarting qock server"
-        python $WORKDIR/QockDaemon.py restart
+        python $QOCKDIR/QockDaemon.py restart
         ;;
     *)
         # Refuse to do other stuff

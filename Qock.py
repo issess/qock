@@ -125,6 +125,14 @@ def main_program():
     global settings
     global owm
 
+    while True:
+        if os.path.isfile("/dev/epd/version"):
+            print "epd..ok!"
+            break
+        else:
+            print "epd init.."
+            time.sleep(1)
+
     logger.debug("qock start!")
     logger.debug("current path="+str(os.getcwd()))
 
