@@ -31,12 +31,14 @@ case "$1" in
     start)
         echo "Starting qock server"
         # Start the daemon
+        $QOCKDIR/tools/connect-network.sh
         $QOCKDIR/tools/check-for-update.sh
         python $QOCKDIR/QockDaemon.py start
         ;;
     stop)
         echo "Stopping qock server"
         # Stop the daemon
+        $QOCKDIR/tools/disconnect-network.sh
         python $QOCKDIR/QockDaemon.py stop
         ;;
     restart)
