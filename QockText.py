@@ -31,25 +31,22 @@ BLACK = 0
 
 
 class QockText(QockObject):
-    def __init__(self, name, x=0, y=0, font_size=0):
+    def __init__(self, name, qock_font, x=0, y=0):
         QockObject.__init__(self, name)
         self._x = x
         self._y = y
-        self._font_size = font_size
+        self._qock_font = qock_font
         self._text = ""
 
     def __str__(self):
         return self._name
 
-    def loadFont(self, path):
-        self._font = ImageFont.truetype(path, self._font_size)
-
     def render(self, draw):
-        draw.text((self.x, self.y), u'{w:s}'.format(w=self._text), fill=BLACK, font=self._font)
+        draw.text((self.x, self.y), u'{w:s}'.format(w=self._text), fill=BLACK, font=self._qock_font.font)
 
     @property
-    def font(self):
-        return self._font
+    def qock_font(self):
+        return self._qock_font
 
     @property
     def text(self):
@@ -58,11 +55,3 @@ class QockText(QockObject):
     @text.setter
     def text(self, text):
         self._text = text
-
-    @property
-    def font_size(self):
-        return self._font_size
-
-    @font_size.setter
-    def font_size(self, font_size):
-        self._font_size = font_size
