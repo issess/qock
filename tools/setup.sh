@@ -10,9 +10,9 @@ sudo apt-get -y install  libi2c-dev i2c-tools python-smbus libfuse-dev python-im
 
 sudo pip install pyowm pillow gitpython python-daemon
 
-git clone https://github.com/repaper/gratis
+git clone https://github.com/issess/gratis ~/gratis
 
-cd gratis
+cd ~/gratis
 
 make rpi PANEL_VERSION='V231_G2'
 
@@ -20,5 +20,6 @@ sudo make rpi-install PANEL_VERSION='V231_G2'
 
 sudo systemctl enable epd-fuse.service
 
+echo "reboot!"
 sudo reboot
 

@@ -24,6 +24,7 @@
 #. /path_to_virtualenv/activate
 
 export QOCKDIR=/home/pi/qock
+export GRATISDIR=/home/pi/gratis
 
 cd $QOCKDIR
 
