@@ -21,27 +21,33 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+
 from QockObject import QockObject
 
-class QockContainer(QockObject):
-    childs = []
+from PIL import ImageFont
 
-    def __init__(self, name):
+WHITE = 1
+BLACK = 0
+
+
+class QockFont(QockObject):
+    def __init__(self, name, path, font_size):
         QockObject.__init__(self, name)
-
-    def append(self, qock):
-        self.childs.append(qock)
-
-    def remove(self, qock):
-        self.childs.remove(qock)
+        self._font_size = font_size
+        self._path = path
+        self._font = ImageFont.truetype(path, self._font_size)
 
     def __str__(self):
-        return self.name
+        return self._name
 
-    def render(self, draw):
-        for child in self.childs:
-            child.render(draw)
+    @property
+    def path(self):
+        return self._path
 
-    def update(self):
-        for child in self.childs:
-            child.update()
+    @property
+    def font(self):
+        return self._font
+
+    @property
+    def font_size(self):
+        return self._font_size

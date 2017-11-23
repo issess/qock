@@ -22,14 +22,12 @@
 # SOFTWARE.
 import os
 import sys
-import random
 
 from PIL import Image
 from PIL import ImageDraw
 from datetime import datetime, timedelta
 import time
 from EPD import EPD
-import socket
 import logging
 
 import pyowm
@@ -37,6 +35,8 @@ import owm_config
 
 from FontManager import FontManager
 from QockText import QockText
+from QockFont import QockFont
+from QockContainer import QockContainer
 
 import RPi.GPIO as GPIO  # Use the python GPIO handler for RPi
 
@@ -59,20 +59,36 @@ iconmap = {"01d": "B", "01n": "C",  # clear sky
            "50d": "J", "50n": "K",  # mist
            }
 
+root = QockContainer("root")
+
 
 class Settings27(object):
-    clock_text = QockText("clock_text", 20, 20, 45)
-    date_text = QockText("date_text", 20, 70, 22)
-    weekday_text = QockText("weekday_text", 135, 0, 45)
-
-    now_weather_icon = QockText("now_weather_icon", 150, 0, 100)
-    now_weather_temp = QockText("now_weather_temp", 170, 90, 20)
-
-    day_weather_text = QockText("day_weather_text", 10, 115, 9)
-    day_weather_icon = QockText("day_weather_icon", 10, 132, 30)
-    day_weather_temp = QockText("day_weather_temp", 10, 162, 12)
-
     fontManager = FontManager()
+    defaultTextFontPath = fontManager.getDefaultFontPath()
+    defaultWeatherFontPath = fontManager.getWeatherFontPath()
+    font80 = QockFont("weather_font_80", defaultWeatherFontPath, 80)
+    font45 = QockFont("default_font_45", defaultTextFontPath, 45)
+    font30 = QockFont("weather_font_30", defaultWeatherFontPath, 30)
+    font22 = QockFont("default_font_22", defaultTextFontPath, 22)
+    font20 = QockFont("default_font_20", defaultTextFontPath, 20)
+    font12 = QockFont("default_font_12", defaultTextFontPath, 12)
+    font9 = QockFont("default_font_9", defaultTextFontPath, 9)
+
+    clock_text = QockText("clock_text", font45, 20, 20)
+    date_text = QockText("date_text", font22, 20, 70)
+    weekday_text = QockText("weekday_text", font45, 135, 0)
+
+    now_weather_icon = QockText("now_weather_icon", font80, 160, 0)
+    now_weather_temp = QockText("now_weather_temp", font20, 170, 80)
+
+    day_weather_text = []
+    day_weather_icon = []
+    day_weather_temp = []
+
+    for i in range(0, 5):
+        day_weather_text.append(QockText("day_weather_text_%d" % i, font9, 10 + i * 52, 115))
+        day_weather_icon.append(QockText("day_weather_icon_%d" % i, font30, 10 + i * 52, 132))
+        day_weather_temp.append(QockText("day_weather_temp_%d" % i, font12, 10 + i * 52, 162))
 
 
 DAYS = [
@@ -125,20 +141,22 @@ def main_program():
     global settings
     global owm
 
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+
     while True:
         if os.path.isfile("/dev/epd/version"):
-            print "epd..ok!"
+            logger.debug("epd..ok!")
             break
         else:
-            print "epd init.."
+            logger.debug("epd init..")
             time.sleep(1)
 
     logger.debug("qock start!")
-    logger.debug("current path="+str(os.getcwd()))
+    logger.debug("current path=" + str(os.getcwd()))
 
     epd = EPD()
 
-    logger.debug('panel = {p:s} {w:d} x {h:d}  version={v:s} COG={g:d} FILM={f:d}'.format(
+    logger.debug('panel={p:s} width={w:d} height={h:d} version={v:s} COG={g:d} FILM={f:d}'.format(
         p=epd.panel, w=epd.width, h=epd.height, v=epd.version, g=epd.cog, f=epd.film))
 
     if 'EPD 2.7' == epd.panel:
@@ -177,25 +195,9 @@ def utc2local(utc):
 
 def loop(epd, settings):
     # initially set all white background
-
-    daily_weather = []
-    daily_weather_icon = []
-    daily_weather_temp = []
-
     image = Image.new('1', epd.size, WHITE)
 
     logger.debug("load font...")
-
-    settings.clock_text.loadFont(settings.fontManager.getDefaultFontPath())
-    settings.date_text.loadFont(settings.fontManager.getDefaultFontPath())
-    settings.weekday_text.loadFont(settings.fontManager.getDefaultFontPath())
-
-    settings.now_weather_icon.loadFont(settings.fontManager.getWeatherFontPath())
-    settings.now_weather_temp.loadFont(settings.fontManager.getDefaultFontPath())
-
-    settings.day_weather_text.loadFont(settings.fontManager.getDefaultFontPath())
-    settings.day_weather_icon.loadFont(settings.fontManager.getWeatherFontPath())
-    settings.day_weather_temp.loadFont(settings.fontManager.getDefaultFontPath())
 
     # prepare for drawing
     draw = ImageDraw.Draw(image)
@@ -207,6 +209,9 @@ def loop(epd, settings):
     refresh_minute = now.minute % 60
 
     logger.debug("loop start...")
+
+    # clear the display buffer
+
     while True:
 
         now = datetime.today()
@@ -220,8 +225,7 @@ def loop(epd, settings):
                 obs = owm.weather_at_place(owm_config.weather_location)
                 w = obs.get_weather()
 
-                settings.now_weather_temp.text = u"{temp:02.1f}°C".format(
-                    temp=w.get_temperature(unit='celsius')['temp'])
+                settings.now_weather_temp.text = u"{temp:02.1f}°C".format(temp=w.get_temperature(unit='celsius')['temp'])
                 settings.now_weather_icon.text = iconmap.get(w.get_weather_icon_name(), ")")
                 fc = owm.daily_forecast(owm_config.weather_location, limit=5)
                 f = fc.get_forecast()
@@ -240,12 +244,9 @@ def loop(epd, settings):
             # logger.debug("now_weather_str=" + temp_str + " now_weather_icon_str=" + now_weather_icon_str)
 
             if len(f) > 0:
-                daily_weather = []
-                daily_weather_icon = []
-                daily_weather_temp = []
                 timegap = now.utcnow() - (
                     datetime.fromtimestamp(int(f.get(0).get_reference_time())) - timedelta(hours=12))
-
+                i = 0
                 for weather in f:
                     logger.debug("=======================")
                     utcdaytime = datetime.fromtimestamp(int(weather.get_reference_time())) - timedelta(hours=12)
@@ -272,30 +273,27 @@ def loop(epd, settings):
                     # logger.debug "utcdaytime=" + str(utcdaytime)
                     # logger.debug "daytime=" + str(daytime)
 
-                    month = daytime.month
-                    day = daytime.day
-                    day_str = '{m:02d}/{d:02d}'.format(m=month, d=day)
-                    daily_weather.append(day_str)
-                    daily_weather_icon.append(iconmap.get(weather.get_weather_icon_name(), ")"))
-                    daily_weather_temp.append(
-                        u"{min:2.0f}/{max:2.0f}".format(min=weather.get_temperature(unit='celsius')['min'],
-                                                        max=weather.get_temperature(unit='celsius')['max']))
-                    logger.debug(day_str + " " + iconmap.get(weather.get_weather_icon_name(),
-                                                             ")") + " " + weather.get_weather_icon_name() + " " + weather.get_status() + "(" + weather.get_detailed_status() + ")")
+                    settings.day_weather_text[i].text = '{m:02d}/{d:02d}'.format(m=daytime.month, d=daytime.day)
+                    settings.day_weather_icon[i].text = iconmap.get(weather.get_weather_icon_name(), ")")
+                    settings.day_weather_temp[i].text = u"{min:2.0f}/{max:2.0f}".format(
+                        min=weather.get_temperature(unit='celsius')['min'],
+                        max=weather.get_temperature(unit='celsius')['max'])
+                    logger.debug("[" + str(i) + "] " + settings.day_weather_text[i].text + " " +
+                                 iconmap.get(weather.get_weather_icon_name(), ")") + " " +
+                                 weather.get_weather_icon_name() + " " +
+                                 weather.get_status() + "(" + weather.get_detailed_status() + ")")
+                    i = i + 1
+
             else:
                 logger.debug("size 0")
 
         # hours
-        draw.text((settings.clock_text.x, settings.clock_text.y), '{h:02d}:{m:02d}'.format(h=now.hour, m=now.minute),
-                  fill=BLACK, font=settings.clock_text.font)
+        settings.clock_text.text = '{h:02d}:{m:02d}'.format(h=now.hour, m=now.minute)
+        settings.clock_text.render(draw)
 
         # date
-        draw.text((settings.date_text.x, settings.date_text.y),
-                  '{y:04d}/{m:02d}/{d:02d}'.format(y=now.year, m=now.month, d=now.day), fill=BLACK,
-                  font=settings.date_text.font)
-
-        # weekday
-        # draw.text((settings.WEEKDAY_X, settings.WEEKDAY_Y), u'{w:s}'.format(w=DAYS[now.weekday()]), fill=BLACK, font=weekday_font)
+        settings.date_text.text = '{y:04d}/{m:02d}/{d:02d}'.format(y=now.year, m=now.month, d=now.day)
+        settings.date_text.render(draw)
 
         # now weather temp
         settings.now_weather_temp.render(draw)
@@ -304,26 +302,10 @@ def loop(epd, settings):
         settings.now_weather_icon.render(draw)
 
         # daily weather
-        i = 0
-        for daily_weather_str in daily_weather:
-            draw.text((settings.day_weather_text.x + i * 52, settings.day_weather_text.y),
-                      '{w:s}'.format(w=daily_weather_str),
-                      fill=BLACK, font=settings.day_weather_text.font)
-            i = i + 1
-
-        # daily icon
-        i = 0
-        for daily_weather_icon_str in daily_weather_icon:
-            draw.text((settings.day_weather_icon.x + i * 52, settings.day_weather_icon.y),
-                      '{w:s}'.format(w=daily_weather_icon_str), fill=BLACK, font=settings.day_weather_icon.font)
-            i = i + 1
-
-        # daily temp
-        i = 0
-        for daily_weather_temp_str in daily_weather_temp:
-            draw.text((settings.day_weather_temp.x + i * 52, settings.day_weather_temp.y),
-                      u'{w:s}'.format(w=daily_weather_temp_str), fill=BLACK, font=settings.day_weather_temp.font)
-            i = i + 1
+        for i in range(0, 5):
+            settings.day_weather_temp[i].render(draw)
+            settings.day_weather_icon[i].render(draw)
+            settings.day_weather_text[i].render(draw)
 
         # display image on the panel
         epd.display(image)
