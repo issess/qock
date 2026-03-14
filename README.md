@@ -5,6 +5,12 @@ qock
  This simple weather desk clock with e-paper display using Python
 ![alt Quck](img/qock.jpg)
 
+### Screenshots
+
+| Clock / Weather | News |
+|:---:|:---:|
+| ![Clock Screen](img/screen_clock.jpg) | ![News Screen](img/screen_news.jpg) |
+
 ## How to use
 
  1. sign up : http://openweathermap.org/register
