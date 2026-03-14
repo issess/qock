@@ -1,3 +1,4 @@
 owm_config.py
+news_config.py
 *.pyc
 .idea

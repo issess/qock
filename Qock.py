@@ -32,6 +32,8 @@ import logging
 
 import pyowm
 import owm_config
+import feedparser
+import news_config
 
 from FontManager import FontManager
 from QockText import QockText
@@ -89,6 +91,12 @@ class Settings27(object):
         day_weather_text.append(QockText("day_weather_text_%d" % i, font9, 10 + i * 52, 115))
         day_weather_icon.append(QockText("day_weather_icon_%d" % i, font30, 10 + i * 52, 132))
         day_weather_temp.append(QockText("day_weather_temp_%d" % i, font12, 10 + i * 52, 162))
+
+    # news screen elements
+    news_title = QockText("news_title", font20, 10, 5)
+    news_line = []
+    for i in range(6):
+        news_line.append(QockText("news_line_%d" % i, font12, 10, 35 + i * 23))
 
 
 DAYS = [
@@ -187,6 +195,33 @@ def initGPIO():
         GPIO.add_event_detect(channel, GPIO.FALLING, callback=my_callback, bouncetime=500)
 
 
+def fetch_news(rss_url, count=3):
+    try:
+        feed = feedparser.parse(rss_url)
+        headlines = []
+        for entry in feed.entries[:count]:
+            headlines.append(entry.title)
+        return headlines
+    except Exception as err:
+        logger.debug(str(err))
+        return [u"뉴스를 불러올 수 없습니다."]
+
+
+def wrap_text(text, font, max_width):
+    lines = []
+    current = ""
+    for char in text:
+        test = current + char
+        if font.getlength(test) <= max_width:
+            current = test
+        else:
+            lines.append(current)
+            current = char
+    if current:
+        lines.append(current)
+    return lines
+
+
 def utc2local(utc):
     epoch = time.mktime(utc.timetuple())
     offset = datetime.fromtimestamp(epoch) - datetime.utcfromtimestamp(epoch)
@@ -207,6 +242,11 @@ def loop(epd, settings):
     now = datetime.today()
 
     refresh_minute = now.minute % 60
+    news_refresh_minute = now.minute % 60
+    news_headlines = []
+    current_screen = "clock"
+    last_rotate_time = time.time()
+    rotate_interval = news_config.screen_rotate_seconds
 
     logger.debug("loop start...")
 
@@ -237,12 +277,6 @@ def loop(epd, settings):
                 f = []
                 refresh_minute = (now.minute + 1) % 60  # try againddd
 
-            # now_weather_str += str(w.get_humidity())
-            # now_weather_str += "%, "
-            # now_weather_str += str(w.get_wind()['speed'])
-            # now_weather_str += "m/s"
-            # logger.debug("now_weather_str=" + temp_str + " now_weather_icon_str=" + now_weather_icon_str)
-
             if len(f) > 0:
                 timegap = now.utcnow() - (
                     datetime.fromtimestamp(int(f.get(0).get_reference_time())) - timedelta(hours=12))
@@ -270,9 +304,6 @@ def loop(epd, settings):
                     logger.debug("month=" + str(month) + " day=" + str(day) + " hour=" + str(hour) + " minute=" + str(
                         minute) + " second=" + str(second))
 
-                    # logger.debug "utcdaytime=" + str(utcdaytime)
-                    # logger.debug "daytime=" + str(daytime)
-
                     settings.day_weather_text[i].text = '{m:02d}/{d:02d}'.format(m=daytime.month, d=daytime.day)
                     settings.day_weather_icon[i].text = iconmap.get(weather.get_weather_icon_name(), ")")
                     settings.day_weather_temp[i].text = u"{min:2.0f}/{max:2.0f}".format(
@@ -287,25 +318,59 @@ def loop(epd, settings):
             else:
                 logger.debug("size 0")
 
-        # hours
-        settings.clock_text.text = '{h:02d}:{m:02d}'.format(h=now.hour, m=now.minute)
-        settings.clock_text.render(draw)
+        # update news
+        if news_refresh_minute == now.minute:
+            news_headlines = fetch_news(news_config.news_rss_url, count=3)
+            news_refresh_minute = (now.minute + news_config.news_refresh_minutes) % 60
+            logger.debug("news updated: %d headlines" % len(news_headlines))
 
-        # date
-        settings.date_text.text = '{y:04d}/{m:02d}/{d:02d}'.format(y=now.year, m=now.month, d=now.day)
-        settings.date_text.render(draw)
+        # auto rotate screen
+        elapsed = time.time() - last_rotate_time
+        if elapsed >= rotate_interval:
+            if current_screen == "clock":
+                current_screen = "news"
+            else:
+                current_screen = "clock"
+            last_rotate_time = time.time()
+            logger.debug("screen switched to: %s" % current_screen)
 
-        # now weather temp
-        settings.now_weather_temp.render(draw)
+        if current_screen == "clock":
+            # hours
+            settings.clock_text.text = '{h:02d}:{m:02d}'.format(h=now.hour, m=now.minute)
+            settings.clock_text.render(draw)
 
-        # now weather icon
-        settings.now_weather_icon.render(draw)
+            # date
+            settings.date_text.text = '{y:04d}/{m:02d}/{d:02d}'.format(y=now.year, m=now.month, d=now.day)
+            settings.date_text.render(draw)
 
-        # daily weather
-        for i in range(0, 5):
-            settings.day_weather_temp[i].render(draw)
-            settings.day_weather_icon[i].render(draw)
-            settings.day_weather_text[i].render(draw)
+            # now weather temp
+            settings.now_weather_temp.render(draw)
+
+            # now weather icon
+            settings.now_weather_icon.render(draw)
+
+            # daily weather
+            for i in range(0, 5):
+                settings.day_weather_temp[i].render(draw)
+                settings.day_weather_icon[i].render(draw)
+                settings.day_weather_text[i].render(draw)
+
+        elif current_screen == "news":
+            # news title
+            settings.news_title.text = u"뉴스"
+            settings.news_title.render(draw)
+
+            # news headlines with word wrap
+            line_idx = 0
+            max_width = width - 20
+            font_obj = settings.font12.font
+            for headline in news_headlines:
+                wrapped = wrap_text(headline, font_obj, max_width)
+                for line in wrapped[:2]:
+                    if line_idx < len(settings.news_line):
+                        settings.news_line[line_idx].text = line
+                        settings.news_line[line_idx].render(draw)
+                        line_idx += 1
 
         # display image on the panel
         epd.display(image)
@@ -315,9 +380,12 @@ def loop(epd, settings):
         else:
             epd.partial_update()
 
-        # wait for next minute
+        # wait for next rotate interval or next minute
         while True:
             now = datetime.today()
+            elapsed = time.time() - last_rotate_time
+            if elapsed >= rotate_interval:
+                break
             if now.second == 0:
                 break
             time.sleep(0.5)

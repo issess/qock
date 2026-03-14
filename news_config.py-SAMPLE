@@ -1,0 +1,9 @@
+#
+# ===============================
+# news rss feed configuration
+# ===============================
+#
+
+news_rss_url = 'https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko'
+news_refresh_minutes = 30
+screen_rotate_seconds = 30
